@@ -452,10 +452,18 @@ const fromRequest = Effect.fn("Gemini.fromRequest")(function* (request: LLMReque
     presencePenalty: generation?.presencePenalty,
     seed: generation?.seed,
     stopSequences: generation?.stop,
+    // Gemini accepts a budget above `maxOutputTokens`, but thinking then leaves the answer empty.
     thinkingConfig:
       options.thinkingConfig === undefined
         ? undefined
-        : { ...options.thinkingConfig, includeThoughts: options.thinkingConfig.includeThoughts ?? true },
+        : {
+            ...options.thinkingConfig,
+            includeThoughts: options.thinkingConfig.includeThoughts ?? true,
+            thinkingBudget:
+              options.thinkingConfig.thinkingBudget === undefined
+                ? undefined
+                : ProviderShared.fitThinkingBudget(options.thinkingConfig.thinkingBudget, generation?.maxTokens),
+          },
   }
 
   return {
