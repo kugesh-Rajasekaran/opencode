@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Effect, Schema } from "effect"
-import { LLM } from "../src/index.js"
-import { OpenAIChat } from "../src/protocols.js"
+import { LLM, ToolDefinition, ToolNamespace } from "../src/index.js"
+import { OpenAIChat, OpenAIResponses } from "../src/protocols.js"
 import { ToolSchemaProjection } from "../src/protocols/utils/tool-schema.js"
 import { Tool, toDefinitions } from "../src/tool.js"
 import { Auth } from "../src/route.js"
@@ -108,6 +108,49 @@ describe("tool schema projections", () => {
         type: "object",
         properties: { mode: { type: "string", enum: ["fast"] } },
       })
+    }),
+  )
+
+  it.effect("applies tool schema rules to tools inside namespaces", () =>
+    Effect.gen(function* () {
+      const prepared = yield* compileRequest(
+        LLM.request({
+          model: OpenAIResponses.route
+            .with({ endpoint: { baseURL: "https://api.openai.test/v1/" }, auth: Auth.bearer("test") })
+            .model({ id: "kimi-k3" }),
+          prompt: "Use the tool.",
+          tools: [
+            ToolNamespace.make({
+              name: "crm",
+              description: "CRM tools",
+              tools: [
+                ToolDefinition.make({
+                  name: "lookup",
+                  description: "Lookup data.",
+                  inputSchema: { properties: { mode: { enum: ["fast"] } } },
+                }),
+              ],
+            }),
+          ],
+        }),
+      )
+
+      expect(prepared.body.tools).toEqual([
+        {
+          type: "namespace",
+          name: "crm",
+          description: "CRM tools",
+          tools: [
+            {
+              type: "function",
+              name: "lookup",
+              description: "Lookup data.",
+              parameters: { type: "object", properties: { mode: { type: "string", enum: ["fast"] } } },
+              strict: false,
+            },
+          ],
+        },
+      ])
     }),
   )
 

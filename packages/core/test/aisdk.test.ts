@@ -98,6 +98,32 @@ it.effect("rejects native provider compaction rather than silently dropping repl
   }),
 )
 
+it.effect("sends tool schemas without model-family sanitizers but with an object root", () =>
+  Effect.gen(function* () {
+    const aisdk = yield* AISDK.Service
+    yield* aisdk.hook.sdk((event) => {
+      event.sdk = { languageModel: () => streamModel([]) }
+    })
+    const resolved = yield* aisdk.model({
+      ...model("@ai-sdk/openai-compatible"),
+      modelID: Model.ID.make("gemini-3.8-flash"),
+    })
+    const schema = { type: "object", required: ["mode", "missing"], properties: { mode: { type: "string" } } }
+    const compiled = yield* compileRequest(
+      LLM.request({
+        model: resolved,
+        prompt: "Use the tools.",
+        tools: [
+          { name: "lookup", description: "Lookup data.", inputSchema: schema },
+          { name: "status", description: "Show status.", inputSchema: {} },
+        ],
+      }),
+    )
+    const body = compiled.body as { readonly tools?: ReadonlyArray<{ readonly inputSchema: unknown }> }
+    expect(body.tools?.map((tool) => tool.inputSchema)).toEqual([schema, { type: "object" }])
+  }),
+)
+
 it.effect("keys language models by package and flattened overlays", () =>
   Effect.gen(function* () {
     const aisdk = yield* AISDK.Service
